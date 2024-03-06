@@ -44,7 +44,7 @@ class vehicle(object):
                 self.voxel, gradient_direction='descent', level=0)
             mesh = trimesh.Trimesh(
                 vertices, faces)
-
+            
         return mesh
 
     @staticmethod
@@ -129,7 +129,7 @@ class vehicle_reconstructor(object):
     def fit_model(self, k=4):
         assert self.vehicle_voxels is not None
         stack_voxels = torch.from_numpy(
-            self.vehicle_voxels).view(self.vehicle_voxels.__len__(), -1)
+            self.vehicle_voxels).cuda().view(self.vehicle_voxels.__len__(), -1)
 
         self.average_voxels = stack_voxels.mean(dim=0)
         self.U, self.S, self.V = torch.pca_lowrank(
