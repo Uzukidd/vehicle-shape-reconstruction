@@ -1,5 +1,7 @@
 data/vehicles_reconstructed
 data/vehicles_original
+preprocessed_voxel.bin
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
