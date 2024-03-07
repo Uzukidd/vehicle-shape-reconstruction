@@ -17,7 +17,6 @@ class vehicle(object):
         self.vertices: np.ndarray = vertices
         self.faces: np.ndarray = faces
         self.voxel: np.ndarray = voxel
-        pass
 
     def __str__(self) -> str:
         return f"vehicle(\"{self.name}\")"
@@ -44,7 +43,7 @@ class vehicle(object):
                 self.voxel, gradient_direction='descent', level=0)
             mesh = trimesh.Trimesh(
                 vertices, faces)
-            
+
         return mesh
 
     @staticmethod
@@ -160,14 +159,14 @@ class vehicle_reconstructor(object):
         assert self.V is not None
 
         voxels = torch.from_numpy(
-            voxels).view(voxels.shape[0], -1) - self.average_voxels
+            voxels).cuda().view(voxels.shape[0], -1) - self.average_voxels
 
         stack_latent = torch.matmul(voxels, self.V)
 
         return stack_latent
 
     def decode(self, latent):
-        voxels = self.decode_aux(latent).cpu().numpy()
+        voxels = self.decode_aux(latent).detach().cpu().numpy()
         vehicles = []
         for voxel in voxels:
             vehicles.append(vehicle(voxel=voxel.reshape(self.grid_res)))
