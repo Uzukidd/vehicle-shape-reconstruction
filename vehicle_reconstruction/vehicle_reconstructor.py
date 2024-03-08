@@ -5,7 +5,10 @@ import trimesh
 import skimage
 
 from tqdm import tqdm
-from mesh_to_sdf import mesh_to_voxels
+try:
+    from mesh_to_sdf import mesh_to_voxels
+except:
+    print("WARNING: cannot detect module mesh_to_sdf!")
 from collections import OrderedDict
 from .utils import get_model_bbox
 
