@@ -179,7 +179,6 @@ class vehicle_reconstructor(object):
         reconstructed_voxel = torch.matmul(
             latent, self.V.T) + self.average_voxels
         reconstructed_voxel = reconstructed_voxel.view([-1] + self.grid_res)
-
         return reconstructed_voxel
 
     @staticmethod
