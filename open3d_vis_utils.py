@@ -57,10 +57,10 @@ def draw_scenes(vis, points, gt_boxes=None, ref_boxes=None, ref_labels=None, ref
 
     vis.get_render_option().point_size = 5.0
     vis.get_render_option().background_color = np.zeros((3))
-    
+
     pts = open3d.geometry.PointCloud()
     pts.points = open3d.utility.Vector3dVector(points[:, :3])
-    
+
     if point_colors is None:
         pts.colors = open3d.utility.Vector3dVector(
             np.ones((points.shape[0], 3)))

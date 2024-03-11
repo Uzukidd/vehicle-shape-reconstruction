@@ -2,7 +2,11 @@
 
 Implementation of tools for reconstruction of vehicle shape.
 
-## Vehicle reconstruction
+[TOC]
+
+## Usage
+
+### Vehicle reconstruction
 
 ![image-20240307114153371](README.assets/image-20240307114153371.png)
 
@@ -10,9 +14,30 @@ Implementation of tools for reconstruction of vehicle shape.
 
 ![image-20240307114218694](README.assets/image-20240307114218694.png)
 
-## Vehicles decoding
+### Vehicles decoding
 
 ![image-20240307114415736](README.assets/image-20240307114415736.png)
+
+## Installation
+
+a. Install `trimesh`, `scikit-learn`, `pytorch` properly.
+
+b. Clone this repository.
+
+```bash
+git clone git@github.com:Uzukidd/vehicle-shape-reconstruction.git
+```
+
+c. Install `mesh_to_sdf` from source.
+
+```bash
+cd ./mesh_to_sdf
+python ./setup.py develop
+```
+
+## Data preprocessing
+
+See details from [data_preprocessing.md](asset\data_preprocessing.md).
 
 ## References
 

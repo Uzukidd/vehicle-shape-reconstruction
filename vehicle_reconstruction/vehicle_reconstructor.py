@@ -5,10 +5,8 @@ import trimesh
 import skimage
 
 from tqdm import tqdm
-try:
-    from mesh_to_sdf import mesh_to_voxels
-except:
-    print("WARNING: cannot detect module mesh_to_sdf!")
+from mesh_to_sdf import mesh_to_voxels
+
 from collections import OrderedDict
 from .utils import get_model_bbox
 
@@ -90,7 +88,7 @@ class vehicle(object):
                                             bbox=uniform_bbox,
                                             standard_bbox=sampling_space,
                                             scan_resolution=400,
-                                            normal_sample_count=256, pad=False)
+                                            normal_sample_count=200, pad=False)
 
         return voxels
 

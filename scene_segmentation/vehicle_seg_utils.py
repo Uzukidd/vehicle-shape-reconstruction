@@ -41,10 +41,12 @@ class pose_estimate_loss(nn.Module):
             z_min, z_max = torch.floor(
                 pts_centroid[:, 2] * 10), torch.floor(pts_centroid[:, 2] * 10) + 1
 
+        # compute grid position
         pts_centroid[:, 0] -= x_min/10.0
         pts_centroid[:, 1] -= y_min/10.0
         pts_centroid[:, 2] -= z_min/10.0
 
+        # project to [-1.0, 1.0]
         pts_centroid[:, :] *= 20.0
         pts_centroid[:, :] -= 1.0
 
@@ -91,7 +93,7 @@ class vehicle_object(object):
         ], requires_grad=True, device=pts.device)
 
     def centroid(self):
-        pts_centroid = self.pts[:, :3] - self.translation[None, :3]  
+        pts_centroid = self.pts[:, :3] - self.translation[None, :3]
         pts_centroid = torch.matmul(pts_centroid, pts_centroid.new_tensor(
             [[torch.cos(-self.translation[3]),
               -torch.sin(-self.translation[3]), 0.0],
@@ -134,9 +136,12 @@ class vehicle_object(object):
     def reconstruct_vehicle(self, reconstructor: "vehicle_reconstructor"):
         self.vehicle = reconstructor.decode(self.vehicle_latent)[0]
 
-    def prepare_training_data(self, reconstructor):
+    def prepare_training_data(self, reconstructor, padding: bool = True):
         voxel: torch.Tensor = reconstructor.decode_aux(self.vehicle_latent)[0]
         voxel = voxel.permute([2, 0, 1])  # [l, w, h]
+
+        if padding:
+            voxel = F.pad(voxel, (1, 1, 1, 1, 1, 1), "constant", 0.2)
 
         pts_centroid, _ = self.centroid()  # [N, 3] world coordinate
 
