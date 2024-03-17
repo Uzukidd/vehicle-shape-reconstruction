@@ -2,7 +2,11 @@
 
 Implementation of tools for reconstruction of vehicle shape.
 
+![image-20240317204527771](README.assets/image-20240317204527771.png)
+
 [TOC]
+
+
 
 ## Usage
 

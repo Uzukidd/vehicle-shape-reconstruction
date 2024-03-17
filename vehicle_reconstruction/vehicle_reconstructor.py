@@ -3,6 +3,7 @@ import numpy as np
 import json
 import trimesh
 import skimage
+import os
 
 from tqdm import tqdm
 from mesh_to_sdf import mesh_to_voxels
@@ -15,8 +16,8 @@ class vehicle(object):
 
     def __init__(self, name: str = None, vertices: np.ndarray = None, faces: np.ndarray = None, voxel: np.ndarray = None):
         self.name: str = name
-        self.vertices: np.ndarray = vertices
-        self.faces: np.ndarray = faces
+        self.vertices: np.ndarray = vertices  # [N, 3]
+        self.faces: np.ndarray = faces  # [M, 3]
         self.voxel: np.ndarray = voxel
 
     def __str__(self) -> str:
@@ -46,6 +47,49 @@ class vehicle(object):
                 vertices, faces)
 
         return mesh
+
+    def output_as_obj(self, dir_path: str):
+        assert self.vertices is not None
+        assert self.faces is not None
+
+        with open(dir_path + f"{self.name}.obj", 'w') as f:
+            for v in self.vertices:
+                f.write("v {} {} {}\n".format(v[0], v[1], v[2]))
+
+            for face in self.faces:
+                f.write("f")
+                for idx in face:
+                    f.write(" {}".format(idx + 1))
+                f.write("\n")
+
+    @staticmethod
+    def load_car_models_from_obj(car_model_dir: str):
+        """Load all the car models
+        """
+        cars = []
+        for filename in os.listdir(car_model_dir):
+            if filename.endswith('.obj'):
+                file_path = os.path.join(car_model_dir, filename)
+                vertices = []
+                faces = []
+                name = os.path.splitext(filename)[0]
+                with open(file_path, 'r') as file:
+                    for line in file:
+                        if line.startswith('v '):
+                            vertex = [float(v)
+                                      for v in line.strip().split()[1:]]
+                            vertices.append(vertex)
+                        elif line.startswith('f '):
+                            face = [int(i.split('/')[0]) -
+                                    1 for i in line.strip().split()[1:]]
+                            faces.append(face)
+
+                vehi = vehicle(name=name,
+                               vertices=np.array(vertices),
+                               faces=np.array(faces))
+                cars.append(vehi)
+
+        return cars
 
     @staticmethod
     def load_car_models(car_model_dir: str, models):
@@ -98,12 +142,13 @@ class vehicle_reconstructor(object):
         fit and reconstruct vehicle shape via PCA.
     """
 
-    def __init__(self, vehicles: list[vehicle], sampling_space, grid_res):
+    def __init__(self, vehicles: list[vehicle], sampling_space, grid_res, global_res):
         self.vehicles: list[vehicle] = vehicles
         self.vehicle_voxels: np.ndarray = None  # [N, res1, res2, res3]
         self.average_voxels: torch.Tensor = None  # [N, K]
         self.sampling_space = sampling_space
         self.grid_res = grid_res
+        self.global_res = global_res
 
         self.U = None
         self.S = None

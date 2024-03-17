@@ -1,4 +1,3 @@
-import pyrender
 import math
 from sklearn.neighbors import KDTree
 import numpy as np
@@ -9,6 +8,7 @@ from .utils import get_raster_points, check_voxels
 import trimesh
 import logging
 logging.getLogger("trimesh").setLevel(9000)
+import pyrender
 
 
 class BadMeshException(Exception):
@@ -202,7 +202,7 @@ def get_equidistant_camera_angles(count):
 def create_from_scans(mesh, bounding_radius=1, scan_count=100, scan_resolution=400, calculate_normals=True):
     scans = []
 
-    for phi, theta in get_equidistant_camera_angles(scan_count):
+    for phi, theta in get_6_view(scan_count):
         camera_transform = get_camera_transform_looking_at_origin(
             phi, theta, camera_distance=2 * bounding_radius)
         scans.append(Scan(mesh,

@@ -1,6 +1,9 @@
 data/vehicles_reconstructed
 data/vehicles_original
 data/preprocessed_voxel.bin
+data/vehicle_dataset
+data/apollo_scape
+data/preprocessed_voxel.bin.backup
 /temp.html
 temp
 

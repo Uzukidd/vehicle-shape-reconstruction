@@ -6,13 +6,34 @@ from cudaext.ops.trilinear_interpolate.trilinear_interpolate_utils import Trilin
 from cudaext.ops.roiaware_pool3d.roiaware_pool3d_utils import points_in_boxes_gpu
 
 
-class pose_estimate_loss(nn.Module):
+class shape_regular(nn.Module):
+    def __init__(self, eigens: torch.Tensor) -> None:
+        super().__init__()
+        self.eigens = eigens.detach().clone().view(1, -1)  # [K]
 
-    def __init__(self, length: int, width: int, height: int) -> None:
+    def forward(self, latent: torch.Tensor):
+        """
+            latent: [1, K]
+        """
+        assert latent.size(0) == 1, "batch computation is not yet supported."
+        return 0.5 * (latent/self.eigens).square().sum()
+
+
+class pose_estimate_loss(nn.Module):
+    """
+        loss from https://www.vision.rwth-aachen.de/media/papers/EngelmannGCPR16_SZa4QgP.pdf
+    """
+
+    def __init__(self, length: int,
+                 width: int,
+                 height: int,
+                 grid_res: float = 0.1) -> None:
+
         super().__init__()
         self.length = length
         self.width = width
         self.height = height
+        self.grid_res = grid_res
         self.trilinear_interpolate = Trilinear_interpolation_cuda()
 
     def forward(self, voxels: torch.Tensor, pts_centroid: torch.Tensor, height_gt: int):
@@ -29,27 +50,34 @@ class pose_estimate_loss(nn.Module):
 
         grid_l, grid_w, grid_h = voxels.size(0), voxels.size(1), voxels.size(2)
 
+        # center position
         pts_centroid[:, 0] += (self.length/2.0)
         pts_centroid[:, 1] += (self.width/2.0)
         pts_centroid[:, 2] += (height_gt/2.0)
 
-        with torch.no_grad():
-            x_min, x_max = torch.floor(
-                pts_centroid[:, 0] * 10), torch.floor(pts_centroid[:, 0] * 10) + 1
-            y_min, y_max = torch.floor(
-                pts_centroid[:, 1] * 10), torch.floor(pts_centroid[:, 1] * 10) + 1
-            z_min, z_max = torch.floor(
-                pts_centroid[:, 2] * 10), torch.floor(pts_centroid[:, 2] * 10) + 1
-
         # compute grid position
-        pts_centroid[:, 0] -= x_min/10.0
-        pts_centroid[:, 1] -= y_min/10.0
-        pts_centroid[:, 2] -= z_min/10.0
+        with torch.no_grad():
+            x_min = torch.floor(
+                pts_centroid[:, 0] / self.grid_res)
+            x_max = x_min + 1
+
+            y_min = torch.floor(
+                pts_centroid[:, 1] / self.grid_res)
+            y_max = y_min + 1
+
+            z_min = torch.floor(
+                pts_centroid[:, 2] / self.grid_res)
+            z_max = z_min + 1
+
+        pts_centroid[:, 0] -= (x_min * self.grid_res)
+        pts_centroid[:, 1] -= (y_min * self.grid_res)
+        pts_centroid[:, 2] -= (z_min * self.grid_res)
 
         # project to [-1.0, 1.0]
-        pts_centroid[:, :] *= 20.0
+        pts_centroid[:, :] *= (2 / self.grid_res)
         pts_centroid[:, :] -= 1.0
 
+        # limit x, y, z into grid boundary
         x_min = x_min.clamp_(0, grid_l-1).long()
         y_min = y_min.clamp_(0, grid_w-1).long()
         z_min = z_min.clamp_(0, grid_h-1).long()
@@ -87,6 +115,7 @@ class vehicle_object(object):
         self.vehicle: "vehicle" = None
         self.vehicle_latent = torch.zeros(
             (1, k), requires_grad=True, device=pts.device)
+        # [1, K]
 
         self.translation = torch.tensor([
             bbox[0].item(), bbox[1].item(), bbox[2].item(), bbox[6].item()
@@ -138,8 +167,9 @@ class vehicle_object(object):
 
     def prepare_training_data(self, reconstructor, padding: bool = True):
         voxel: torch.Tensor = reconstructor.decode_aux(self.vehicle_latent)[0]
-        voxel = voxel.permute([2, 0, 1])  # [l, w, h]
+        voxel = voxel.permute([2, 0, 1])  # [w, h, l] -> [l, w, h]
 
+        #  padding
         if padding:
             voxel = F.pad(voxel, (1, 1, 1, 1, 1, 1), "constant", 0.2)
 
@@ -162,7 +192,10 @@ class point_cloud_scene(object):
         self.estimate_loss_fun: pose_estimate_loss = pose_estimate_loss(
             vehi_reconstructor.sampling_space[2],
             vehi_reconstructor.sampling_space[0],
-            vehi_reconstructor.sampling_space[1])
+            vehi_reconstructor.sampling_space[1],
+            vehi_reconstructor.global_res)
+        self.shape_regular_fun: shape_regular = shape_regular(
+            vehi_reconstructor.S)
 
     def vehicle_seg(self):
         self.vehicles = []
@@ -186,24 +219,27 @@ class point_cloud_scene(object):
 
         return self.vehicles
 
-    def pose_estimate(self):
+    def pose_estimate(self, iter=5):
         if self.vehicles is None:
             self.vehicle_seg()
 
         for vehi in self.vehicles:
-            for i in range(5):
+            for _ in range(iter):
                 voxel, pts_centroid, height = vehi.prepare_training_data(
                     self.vehi_reconstructor)
                 shape_loss = self.estimate_loss_fun(
                     voxel, pts_centroid, height)
-                shape_loss.backward()
-                if i == 0:
-                    print(shape_loss)
-                vehi.vehicle_latent = vehi.vehicle_latent - 1000.0 * vehi.vehicle_latent.grad
+                shape_regulation = self.shape_regular_fun(
+                    vehi.vehicle_latent)
+
+                total_loss = (16.6 / self.vehi_reconstructor.global_res) * \
+                    shape_loss + shape_regulation
+                total_loss.backward()
+
+                vehi.vehicle_latent = vehi.vehicle_latent - vehi.vehicle_latent.grad
                 vehi.vehicle_latent = vehi.vehicle_latent.clone().detach()
                 vehi.vehicle_latent.requires_grad_(True)
 
-            print(shape_loss)
             # if vehi.translation.grad is not None:
             #     vehi.translation = vehi.translation - vehi.translation.grad
             #     vehi.translation = vehi.translation.clone().detach()
