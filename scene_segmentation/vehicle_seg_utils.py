@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+# from ..vehicle_reconstruction import *
 from cudaext.ops.trilinear_interpolate.trilinear_interpolate_utils import Trilinear_interpolation_cuda, trilinear_interpolation_cpu
 from cudaext.ops.roiaware_pool3d.roiaware_pool3d_utils import points_in_boxes_gpu
 
@@ -138,9 +139,10 @@ class vehicle_object(object):
 
         return pts_centroid, bbox_centroid
 
-    def reconstruct_at_scene(self, vehi_reconstructor, standard_bbox):
+    def reconstruct_at_scene(self, vehi_reconstructor, standard_bbox, show_rooftop: bool = False):
         self.reconstruct_vehicle(vehi_reconstructor)
-        vehicle_mesh = self.vehicle.to_trimesh()
+        vehi = self.vehicle.to_mesh()
+        vehicle_mesh = vehi.to_trimesh()
         vehicle_mesh.vertices *= 0.1
         vehicle_mesh.vertices = vehicle_mesh.vertices[:, [2, 0, 1]]
 
@@ -159,8 +161,12 @@ class vehicle_object(object):
         vehicle_mesh.vertices += np.array([self.bbox[0].cpu(),
                                            self.bbox[1].cpu(),
                                            self.bbox[2].cpu()])
-
-        return vehicle_mesh
+        if show_rooftop:
+            rooftop_vertices, rooftop_idx = vehi.to_mesh().rooftop_approximate(
+                return_idx=True)
+            return vehicle_mesh, rooftop_idx
+        else:
+            return vehicle_mesh
 
     def reconstruct_vehicle(self, reconstructor: "vehicle_reconstructor"):
         self.vehicle = reconstructor.decode(self.vehicle_latent)[0]

@@ -24,8 +24,19 @@ class vehicle(object):
         return f"vehicle(\"{self.name}\")"
 
     def to_mesh(self):
-        assert self.voxel is not None
-
+        vehi = None
+        if self.vertices is not None and\
+                self.faces is not None:
+            vehi = vehicle(name=self.name,
+                           vertices=self.vertices, faces=self.faces)
+        
+        elif self.voxel is not None:
+            vertices, faces, normals, _ = skimage.measure.marching_cubes(
+                self.voxel, gradient_direction='descent', level=0)
+            vehi = vehicle(name=self.name,
+                           vertices=vertices, faces=faces)
+        return vehi
+    
     def to_voxel(self, sampling_space, grid_res, truncated_dis=0.2):
         assert self.vertices is not None
         assert self.faces is not None
@@ -61,6 +72,19 @@ class vehicle(object):
                 for idx in face:
                     f.write(" {}".format(idx + 1))
                 f.write("\n")
+
+    def rooftop_approximate(self, max_dis=2, return_idx=False):
+        assert self.vertices is not None
+        assert self.faces is not None
+
+        max_y = self.vertices[:, 1].max()
+        rooftop_idx = ((max_y - self.vertices[:, 1]) < max_dis)
+        rooftop_vertices = self.vertices[rooftop_idx]
+
+        if return_idx:
+            return rooftop_vertices, rooftop_idx
+        else:
+            return rooftop_vertices
 
     @staticmethod
     def load_car_models_from_obj(car_model_dir: str):
@@ -226,14 +250,6 @@ class vehicle_reconstructor(object):
             latent, self.V.T) + self.average_voxels
         reconstructed_voxel = reconstructed_voxel.view([-1] + self.grid_res)
         return reconstructed_voxel
-
-    @staticmethod
-    def voxelize_model(model):
-        pass
-
-    @staticmethod
-    def voxel2mesh(voxel):
-        pass
 
 
 if __name__ == "__main__":

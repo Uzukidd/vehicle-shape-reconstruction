@@ -55,7 +55,7 @@ def draw_scenes(vis, points, gt_boxes=None, ref_boxes=None, ref_labels=None, ref
 
     # points[:,:3] = np.dot(points[:,:3] , get_transform_matrix().T)
 
-    vis.get_render_option().point_size = 5.0
+    vis.get_render_option().point_size = 4.0
     vis.get_render_option().background_color = np.zeros((3))
 
     pts = open3d.geometry.PointCloud()
