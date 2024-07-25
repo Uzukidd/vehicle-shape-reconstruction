@@ -6,7 +6,7 @@ import skimage
 import os
 
 from tqdm import tqdm
-from mesh_to_sdf import mesh_to_voxels
+# from mesh_to_sdf import mesh_to_voxels
 
 from collections import OrderedDict
 from .utils import get_model_bbox

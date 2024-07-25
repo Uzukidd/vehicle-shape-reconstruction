@@ -16,7 +16,7 @@ class shape_regular(nn.Module):
         """
             latent: [1, K]
         """
-        assert latent.size(0) == 1, "batch computation is not yet supported."
+        assert latent.size(0) == 1, "batch forwarding is not yet supported."
         return 0.5 * (latent/self.eigens).square().sum()
 
 
@@ -47,7 +47,7 @@ class pose_estimate_loss(nn.Module):
             pts_centroid: [N, 3]
             height: int
         """
-        assert pts_centroid.size().__len__() < 3, "batch computation is not yet supported."
+        assert pts_centroid.size().__len__() < 3, "batch forwarding is not yet supported."
 
         grid_l, grid_w, grid_h = voxels.size(0), voxels.size(1), voxels.size(2)
 
@@ -143,6 +143,7 @@ class vehicle_object(object):
         self.reconstruct_vehicle(vehi_reconstructor)
         vehi = self.vehicle.to_mesh()
         vehicle_mesh = vehi.to_trimesh()
+
         vehicle_mesh.vertices *= 0.1
         vehicle_mesh.vertices = vehicle_mesh.vertices[:, [2, 0, 1]]
 
@@ -161,9 +162,13 @@ class vehicle_object(object):
         vehicle_mesh.vertices += np.array([self.bbox[0].cpu(),
                                            self.bbox[1].cpu(),
                                            self.bbox[2].cpu()])
+
         if show_rooftop:
-            rooftop_vertices, rooftop_idx = vehi.to_mesh().rooftop_approximate(
-                return_idx=True)
+            max_y = vehicle_mesh.vertices[:, 2].max()
+            rooftop_idx = ((max_y - vehicle_mesh.vertices[:, 2]) < 0.2)
+            # rooftop_vertices = self.vertices[rooftop_idx]
+            # rooftop_vertices, rooftop_idx = vehi.rooftop_approximate(
+            #     return_idx=True)
             return vehicle_mesh, rooftop_idx
         else:
             return vehicle_mesh
@@ -211,8 +216,9 @@ class point_cloud_scene(object):
         for bbox_idx in range(self.gt_boxes.size(0)):
 
             bbox_mask = (self.pts_assign == bbox_idx)
-
-            if not bbox_mask.any():
+            
+            if bbox_mask.numel() < 10 or bbox_mask.sum() < 10:
+                self.vehicles.append(None)
                 continue
 
             vehicle = vehicle_object(pts=self.pts[bbox_mask],
@@ -230,6 +236,9 @@ class point_cloud_scene(object):
             self.vehicle_seg()
 
         for vehi in self.vehicles:
+            if vehi is None:
+                continue
+            
             for _ in range(iter):
                 voxel, pts_centroid, height = vehi.prepare_training_data(
                     self.vehi_reconstructor)

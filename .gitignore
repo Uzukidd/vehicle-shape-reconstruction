@@ -4,6 +4,12 @@ data/preprocessed_voxel.bin
 data/vehicle_dataset
 data/apollo_scape
 data/preprocessed_voxel.bin.backup
+rooftop_appro_kitti.pkl
+rooftop_appro.bin
+rooftop_appro.pkl
+rooftop_appro.pkl.backup
+data_tools.py
+cfgs
 /temp.html
 temp
 
