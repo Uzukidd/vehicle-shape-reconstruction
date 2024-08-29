@@ -38,19 +38,19 @@ from pcdet.datasets import KittiDataset, build_dataloader
 from pcdet.models import build_network, load_data_to_gpu
 from pcdet.utils import common_utils
 
-CFG_PATH = "cfgs/dataset_configs/kitti_carla_dataset.yaml"
-GTBOXES_PATH = "/home/ksas/uzuki_space/adv-carla/output/train/inference_models/voxel_rcnn_car/gtboxes.pt"
-VISUALIZE = True 
+CFG_PATH = "cfgs/dataset_configs/outdoor_demo_dataset.yaml"
+GTBOXES_PATH = "/home/ksas/uzuki_space/adv-carla/data/gtound truth/inference_models_outdoor_demo/pointpillar/gtboxes.pt"
+VISUALIZE = False 
 cfg_from_yaml_file(CFG_PATH, cfg)
 
 # BATCH_SIZE = cfg.OPTIMIZATION.BATCH_SIZE_PER_GPU
 logger = common_utils.create_logger()
 logger.info('-----------------vehicles reconstruction test-------------------------')
 
-dataset = kitti_carla_dataset(cfg, 
+dataset = outdoor_demo_dataset(cfg, 
                                 class_names=['Car', 'Pedestrian', 'Cyclist'], 
                                 training=False, 
-                                ext=".ply", 
+                                ext=".bin", 
                                 gtboxes_path = GTBOXES_PATH,
                                 logger=logger)
 
@@ -71,7 +71,8 @@ rooftop_array = []
 
 for i, batch_dict in tqdm(enumerate(dataset), total=dataset.__len__()):
     if VISUALIZE:
-        batch_dict = dataset.__getitem__(random.randrange(0, dataset.__len__()))
+        batch_dict = dataset.__getitem__(2)
+        # batch_dict = dataset.__getitem__(random.randrange(0, dataset.__len__()))
     load_data_to_gpu(batch_dict)
     
     pts = batch_dict['points']

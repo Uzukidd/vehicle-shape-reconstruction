@@ -250,10 +250,14 @@ class point_cloud_scene(object):
                 total_loss = (16.6 / self.vehi_reconstructor.global_res) * \
                     shape_loss + shape_regulation
                 total_loss.backward()
-
+                
                 vehi.vehicle_latent = vehi.vehicle_latent - vehi.vehicle_latent.grad
                 vehi.vehicle_latent = vehi.vehicle_latent.clone().detach()
                 vehi.vehicle_latent.requires_grad_(True)
+                
+                # vehi.translation = vehi.translation - vehi.translation.grad
+                # vehi.translation = vehi.translation.clone().detach()
+                # vehi.translation.requires_grad_(True)
 
             # if vehi.translation.grad is not None:
             #     vehi.translation = vehi.translation - vehi.translation.grad
