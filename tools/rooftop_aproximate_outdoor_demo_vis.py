@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Optional
 from data_tools import *
 from vehicle_reconstruction import *
-from scene_segmentation import *
+from vehicle_reconstruction.scene_segmentation import *
 from open3d_vis_utils import draw_scenes
 
 from cudaext.ops.Rotated_IoU.oriented_iou_loss import cal_iou_3d, assign_target_3d

@@ -165,7 +165,12 @@ class vehicle_reconstructor(object):
     """
         fit and reconstruct vehicle shape via PCA.
     """
-
+    GLOBAL_RES:float = 0.1
+    STANDARD_BBOX = [2.5, 1.9, 5.6, -1.25, 1.25, 0.0, 1.90, -2.8, 2.8]
+    GRID_RES = [int(np.ceil(STANDARD_BBOX[0]/GLOBAL_RES) + 1),
+                int(np.ceil(STANDARD_BBOX[1]/GLOBAL_RES) + 1),
+                int(np.ceil(STANDARD_BBOX[2]/GLOBAL_RES) + 1)]
+    
     def __init__(self, vehicles: list[vehicle], sampling_space, grid_res, global_res):
         self.vehicles: list[vehicle] = vehicles
         self.vehicle_voxels: np.ndarray = None  # [N, res1, res2, res3]
@@ -177,6 +182,13 @@ class vehicle_reconstructor(object):
         self.U = None
         self.S = None
         self.V = None
+        
+    def save_parameters(self, path:str):
+        assert (self.U is not None) and (self.S is not None) and (self.V is not None)
+        torch.save((self.U, self.S, self.V), path)
+    
+    def load_parameters(self, path:str):
+        self.U, self.S, self.V = torch.load(path)
 
     def save_voxel(self, path: str):
         assert self.vehicle_voxels is not None
