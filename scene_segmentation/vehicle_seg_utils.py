@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 # from ..vehicle_reconstruction import *
 from cudaext.ops.trilinear_interpolate.trilinear_interpolate_utils import Trilinear_interpolation_cuda, trilinear_interpolation_cpu
-from cudaext.ops.roiaware_pool3d.roiaware_pool3d_utils import points_in_boxes_gpu
+from cudaext.ops.roiaware_pool3d.roiaware_pool3d_utils import points_in_boxes_gpu, points_in_boxes_cpu
 
 
 class shape_regular(nn.Module):
@@ -196,8 +196,8 @@ class point_cloud_scene(object):
             pts: [N, 4]
             gt_boxes: [N, 7]
         """
-        self.pts: torch.Tensor = pts
-        self.gt_boxes: torch.Tensor = gt_boxes
+        self.pts: torch.Tensor = pts.detach().clone()
+        self.gt_boxes: torch.Tensor = gt_boxes.detach().clone()
         self.vehicles: list[vehicle_object] = None
         self.vehi_reconstructor: "vehicle_reconstructor" = vehi_reconstructor
         self.estimate_loss_fun: pose_estimate_loss = pose_estimate_loss(

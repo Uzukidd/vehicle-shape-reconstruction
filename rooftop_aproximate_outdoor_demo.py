@@ -39,8 +39,9 @@ from pcdet.models import build_network, load_data_to_gpu
 from pcdet.utils import common_utils
 
 CFG_PATH = "cfgs/dataset_configs/outdoor_demo_dataset.yaml"
-GTBOXES_PATH = "/home/ksas/uzuki_space/adv-carla/data/gtound truth/inference_models_outdoor_demo/pointpillar/gtboxes.pt"
-VISUALIZE = False 
+INFERENCE_PATH = "/home/ksas/uzuki_space/adv-carla/data/gtound truth/inference_models_outdoor_demo/pointrcnn/gtboxes.pt"
+GTBOXES_PATH = "/home/ksas/uzuki_space/adv-carla/data/gtound truth/inference_models_outdoor_demo/pointrcnn/gtboxes.pt"
+VISUALIZE = True 
 cfg_from_yaml_file(CFG_PATH, cfg)
 
 # BATCH_SIZE = cfg.OPTIMIZATION.BATCH_SIZE_PER_GPU
@@ -51,6 +52,7 @@ dataset = outdoor_demo_dataset(cfg,
                                 class_names=['Car', 'Pedestrian', 'Cyclist'], 
                                 training=False, 
                                 ext=".bin", 
+                                # inference_path =  INFERENCE_PATH,
                                 gtboxes_path = GTBOXES_PATH,
                                 logger=logger)
 
@@ -71,14 +73,20 @@ rooftop_array = []
 
 for i, batch_dict in tqdm(enumerate(dataset), total=dataset.__len__()):
     if VISUALIZE:
-        batch_dict = dataset.__getitem__(2)
-        # batch_dict = dataset.__getitem__(random.randrange(0, dataset.__len__()))
+        # batch_dict = dataset.__getitem__(2)
+        batch_dict = dataset.__getitem__(random.randrange(0, dataset.__len__()))
+        print(f"getting sample (index=: {batch_dict})")
     load_data_to_gpu(batch_dict)
     
     pts = batch_dict['points']
     gt_boxes, gt_labels = torch.split(batch_dict['gt_boxes'], [7, 1], dim=1)  # [N, 7], [N, 1]
     gt_boxes = gt_boxes[gt_labels[:, 0] == 1]
     gt_labels = gt_labels[gt_labels[:, 0] == 1]
+    
+    if 'inference_bboxes' in batch_dict:
+        inference_boxes, inference_labels = torch.split(batch_dict['inference_bboxes'], [7, 1], dim=1)  # [N, 7], [N, 1]
+        inference_boxes = inference_boxes[inference_labels[:, 0] == 1]
+        inference_labels = inference_labels[inference_labels[:, 0] == 1]
     
     scene = point_cloud_scene(pts=pts,
                           gt_boxes=gt_boxes,
