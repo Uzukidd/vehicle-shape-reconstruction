@@ -184,11 +184,11 @@ class vehicle_reconstructor(object):
         self.V = None
         
     def save_parameters(self, path:str):
-        assert (self.U is not None) and (self.S is not None) and (self.V is not None)
-        torch.save((self.U, self.S, self.V), path)
+        assert (self.U is not None) and (self.S is not None) and (self.V is not None) and (self.average_voxels is not None)
+        torch.save((self.U, self.S, self.V, self.average_voxels), path)
     
     def load_parameters(self, path:str):
-        self.U, self.S, self.V = torch.load(path)
+        self.U, self.S, self.V, self.average_voxels = torch.load(path, map_location=torch.device('cuda'))
 
     def save_voxel(self, path: str):
         assert self.vehicle_voxels is not None
