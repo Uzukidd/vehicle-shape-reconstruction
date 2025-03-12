@@ -1,13 +1,16 @@
 import torch
+import pytorch3d
+from pytorch3d.structures import Meshes
 import numpy as np
 import json
-import trimesh
 import skimage
 import os
 
-from tqdm import tqdm
-# from mesh_to_sdf import mesh_to_voxels
+from voxeltorch import TSDF, tsdf2meshes
 
+from tqdm import tqdm
+
+from typing import Union
 from collections import OrderedDict
 from .utils import get_model_bbox
 
@@ -165,19 +168,11 @@ class vehicle_reconstructor(object):
     """
         fit and reconstruct vehicle shape via PCA.
     """
-    GLOBAL_RES:float = 0.1
-    STANDARD_BBOX = [2.5, 1.9, 5.6, -1.25, 1.25, 0.0, 1.90, -2.8, 2.8]
-    GRID_RES = [int(np.ceil(STANDARD_BBOX[0]/GLOBAL_RES) + 1),
-                int(np.ceil(STANDARD_BBOX[1]/GLOBAL_RES) + 1),
-                int(np.ceil(STANDARD_BBOX[2]/GLOBAL_RES) + 1)]
-    
-    def __init__(self, vehicles: list[vehicle], sampling_space, grid_res, global_res):
-        self.vehicles: list[vehicle] = vehicles
-        self.vehicle_voxels: np.ndarray = None  # [N, res1, res2, res3]
-        self.average_voxels: torch.Tensor = None  # [N, K]
-        self.sampling_space = sampling_space
-        self.grid_res = grid_res
-        self.global_res = global_res
+
+    def __init__(self, resolution: Union[int, torch.Tensor], bbox: torch.Tensor, sampling_count=4096,
+            downsampling_count=2048, isotropic=True):
+        # self.vehicles: Meshes = vehicles
+        self.TSDF: TSDF = TSDF(resolution=resolution, sampling_count=sampling_count, downsampling_count=downsampling_count, bbox=bbox)
 
         self.U = None
         self.S = None
@@ -198,74 +193,49 @@ class vehicle_reconstructor(object):
         self.vehicle_voxels = np.fromfile(
             path, np.float32).reshape([-1] + self.grid_res)
 
-    def voxelize_vehicles(self):
-        self.vehicle_voxels = []
+    def prepare_tsdf(self, vehicles: Meshes):
+        batch_tsdf_grid:torch.Tensor = self.TSDF.tsdf(vehicles)
 
-        for vehi in tqdm(self.vehicles):
-            voxel = vehi.to_voxel(self.sampling_space, self.grid_res).voxel
-            self.vehicle_voxels.append(voxel)
+        return batch_tsdf_grid
 
-        self.vehicle_voxels = np.stack(self.vehicle_voxels)
+    def fit_meshes(self, vehicles: Meshes, k=4):
+        self.batch_tsdf_grid = self.prepare_tsdf(vehicles)
 
-    def fit_model(self, k=4):
-        assert self.vehicle_voxels is not None
-        stack_voxels = torch.from_numpy(
-            self.vehicle_voxels).cuda().view(self.vehicle_voxels.__len__(), -1)
+        batch_tsdf_flatten = self.batch_tsdf_grid.view(self.batch_tsdf_grid.size(0), -1)
+        
+        self.batch_tsdf_mean = batch_tsdf_flatten.mean(dim = 0)
+        self._U, self._S, self._V = torch.pca_lowrank(batch_tsdf_flatten - self.batch_tsdf_mean, q=k, center=True)
+        
+    def reconsturct(self, vehicles: Union[Meshes, torch.Tensor]):
+        if isinstance(vehicles, torch.Tensor):
+            latent = self.encode_aux(vehicles.view(vehicles.size(0), -1))
+        elif isinstance(vehicles, Meshes):
+            latent = self.encode(vehicles)
 
-        self.average_voxels = stack_voxels.mean(dim=0)
-        self.U, self.S, self.V = torch.pca_lowrank(
-            stack_voxels, q=k, center=True)
+        return self.decode(latent)
 
-    def reconsturct(self, vehicles: list[vehicle] = None):
-        if vehicles is not None:
-            stack_latent = self.encode(vehicles)
-        else:
-            stack_latent = self.encode_aux(self.vehicle_voxels)
+    def encode(self, vehicles: Meshes):
+        batch_tsdf_grid = self.prepare_tsdf(vehicles)
+        batch_tsdf_flatten = batch_tsdf_grid.view(batch_tsdf_grid.size(0), -1)
+        
+        return self.encode_aux(batch_tsdf_flatten)
 
-        return self.decode(stack_latent)
+    def encode_aux(self, batch_tsdf):
+        assert self._V is not None
+        latent = (batch_tsdf - self.batch_tsdf_mean) @ self._V @ self._S.diag().inverse()
 
-    def encode(self, vehicles: list[vehicle]):
-        voxels = []
-        for vehi in vehicles:
-            voxel = vehi.voxel
-            if vehi.voxel is None:
-                voxel = vehi.to_voxel(self.sampling_space, self.grid_res).voxel
+        return latent
 
-            voxels.append(voxel)
-
-        voxels = np.stack(voxels)
-
-        return self.encode_aux(voxels)
-
-    def encode_aux(self, voxels):
-        assert self.V is not None
-
-        voxels = torch.from_numpy(
-            voxels).cuda().view(voxels.shape[0], -1) - self.average_voxels
-
-        stack_latent = torch.matmul(voxels, self.V)
-
-        return stack_latent
-
-    def decode(self, latent):
-        voxels = self.decode_aux(latent).detach().cpu().numpy()
-        vehicles = []
-        for voxel in voxels:
-            vehicles.append(vehicle(voxel=voxel.reshape(self.grid_res)))
-
-        return vehicles
+    def decode(self, latent:torch.Tensor, to_meshes:bool=False):
+        batch_reconstructed_tsdf = self.decode_aux(latent).view(-1, *self.TSDF.resolution)
+        return batch_reconstructed_tsdf
 
     def decode_aux(self, latent):
-        assert self.V is not None
+        assert self._V is not None
+        batch_reconstructed_tsdf = latent @ self._S.diag() @ self._V.T + self.batch_tsdf_mean
 
-        reconstructed_voxel = torch.matmul(
-            latent, self.V.T) + self.average_voxels
-        reconstructed_voxel = reconstructed_voxel.view([-1] + self.grid_res)
-        return reconstructed_voxel
+        return batch_reconstructed_tsdf
 
 
 if __name__ == "__main__":
-    import car_models
-    CAR_MODEL_DIR = "F:\\ApolloScape\\3d_car_instance_sample\\3d_car_instance_sample\\car_models_json"
-    vehicles = vehicle.load_car_models(car_model_dir=CAR_MODEL_DIR,
-                                       models=car_models.models)
+    pass
