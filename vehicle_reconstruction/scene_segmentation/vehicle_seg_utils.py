@@ -15,82 +15,82 @@ class vehicle_object(object):
             pts: [N, 3]
             bbox: [7]
         """
-        self.pts = pts
-        self.bbox = bbox
-        self.vehicle: "vehicle" = None
-        self.vehicle_latent = torch.zeros(
-            (1, k), requires_grad=True, device=pts.device)
+        self.pts = pts.detach().clone()
+        self.bbox = bbox.detach().clone()
+        # self.vehicle: "vehicle" = None
+        # self.vehicle_latent = torch.zeros(
+        #     (1, k), requires_grad=True, device=pts.device)
         # [1, K]
 
-        self.translation = torch.tensor([
-            bbox[0].item(), bbox[1].item(), bbox[2].item(), bbox[6].item()
-        ], requires_grad=True, device=pts.device)
+        # self.translation = torch.tensor([
+        #     bbox[0].item(), bbox[1].item(), bbox[2].item(), bbox[6].item()
+        # ], requires_grad=True, device=pts.device)
 
-    def centroid(self):
-        pts_centroid = self.pts[:, :3] - self.translation[None, :3]
-        pts_centroid = torch.matmul(pts_centroid, pts_centroid.new_tensor(
-            [[torch.cos(-self.translation[3]),
-              -torch.sin(-self.translation[3]), 0.0],
-             [torch.sin(-self.translation[3]),
-              torch.cos(-self.translation[3]), 0.0],
-             [0.0, 0.0, 1.0],
-             ]
-        ).T)
+    # def centroid(self):
+    #     pts_centroid = self.pts[:, :3] - self.translation[None, :3]
+    #     pts_centroid = torch.matmul(pts_centroid, pts_centroid.new_tensor(
+    #         [[torch.cos(-self.translation[3]),
+    #           -torch.sin(-self.translation[3]), 0.0],
+    #          [torch.sin(-self.translation[3]),
+    #           torch.cos(-self.translation[3]), 0.0],
+    #          [0.0, 0.0, 1.0],
+    #          ]
+    #     ).T)
 
-        # undifferentiable
-        bbox_centroid = torch.zeros_like(self.bbox)
-        bbox_centroid[3:6] = self.bbox[3:6]
+    #     # undifferentiable
+    #     bbox_centroid = torch.zeros_like(self.bbox)
+    #     bbox_centroid[3:6] = self.bbox[3:6]
 
-        return pts_centroid, bbox_centroid
+    #     return pts_centroid, bbox_centroid
 
-    def reconstruct_at_scene(self, vehi_reconstructor, standard_bbox, show_rooftop: bool = False):
-        self.reconstruct_vehicle(vehi_reconstructor)
-        vehi = self.vehicle.to_mesh()
-        vehicle_mesh = vehi.to_trimesh()
+    # def reconstruct_at_scene(self, vehi_reconstructor, standard_bbox, show_rooftop: bool = False):
+    #     self.reconstruct_vehicle(vehi_reconstructor)
+    #     vehi = self.vehicle.to_mesh()
+    #     vehicle_mesh = vehi.to_trimesh()
 
-        vehicle_mesh.vertices *= 0.1
-        vehicle_mesh.vertices = vehicle_mesh.vertices[:, [2, 0, 1]]
+    #     vehicle_mesh.vertices *= 0.1
+    #     vehicle_mesh.vertices = vehicle_mesh.vertices[:, [2, 0, 1]]
 
-        vehicle_mesh.vertices -= np.array([standard_bbox[2]/2.0,
-                                           standard_bbox[0]/2.0,
-                                           self.bbox[5].cpu() / 2.0])
-        vehicle_mesh.vertices = np.matmul(vehicle_mesh.vertices, np.array(
-            [[np.cos(self.bbox[6].cpu()),
-              -np.sin(self.bbox[6].cpu()), 0.0],
-             [np.sin(self.bbox[6].cpu()),
-              np.cos(self.bbox[6].cpu()), 0.0],
-             [0.0, 0.0, 1.0],
-             ]
-        ).T)
+    #     vehicle_mesh.vertices -= np.array([standard_bbox[2]/2.0,
+    #                                        standard_bbox[0]/2.0,
+    #                                        self.bbox[5].cpu() / 2.0])
+    #     vehicle_mesh.vertices = np.matmul(vehicle_mesh.vertices, np.array(
+    #         [[np.cos(self.bbox[6].cpu()),
+    #           -np.sin(self.bbox[6].cpu()), 0.0],
+    #          [np.sin(self.bbox[6].cpu()),
+    #           np.cos(self.bbox[6].cpu()), 0.0],
+    #          [0.0, 0.0, 1.0],
+    #          ]
+    #     ).T)
 
-        vehicle_mesh.vertices += np.array([self.bbox[0].cpu(),
-                                           self.bbox[1].cpu(),
-                                           self.bbox[2].cpu()])
+    #     vehicle_mesh.vertices += np.array([self.bbox[0].cpu(),
+    #                                        self.bbox[1].cpu(),
+    #                                        self.bbox[2].cpu()])
 
-        if show_rooftop:
-            max_y = vehicle_mesh.vertices[:, 2].max()
-            rooftop_idx = ((max_y - vehicle_mesh.vertices[:, 2]) < 0.2)
-            # rooftop_vertices = self.vertices[rooftop_idx]
-            # rooftop_vertices, rooftop_idx = vehi.rooftop_approximate(
-            #     return_idx=True)
-            return vehicle_mesh, rooftop_idx
-        else:
-            return vehicle_mesh
+    #     if show_rooftop:
+    #         max_y = vehicle_mesh.vertices[:, 2].max()
+    #         rooftop_idx = ((max_y - vehicle_mesh.vertices[:, 2]) < 0.2)
+    #         # rooftop_vertices = self.vertices[rooftop_idx]
+    #         # rooftop_vertices, rooftop_idx = vehi.rooftop_approximate(
+    #         #     return_idx=True)
+    #         return vehicle_mesh, rooftop_idx
+    #     else:
+    #         return vehicle_mesh
 
-    def reconstruct_vehicle(self, reconstructor: vehicle_reconstructor):
-        self.vehicle = reconstructor.decode(self.vehicle_latent)[0]
+    # def reconstruct_vehicle(self, reconstructor: vehicle_reconstructor):
+    #     self.vehicle = reconstructor.decode(self.vehicle_latent)[0]
 
-    def prepare_training_data(self, reconstructor, padding: bool = True):
-        voxel: torch.Tensor = reconstructor.decode_aux(self.vehicle_latent)[0]
-        voxel = voxel.permute([2, 0, 1])  # [w, h, l] -> [l, w, h]
+    # def prepare_training_data(self, reconstructor, padding: bool = True):
+    #     voxel: torch.Tensor = reconstructor.decode_aux(self.vehicle_latent)[0]
+    #     voxel = voxel.permute([2, 0, 1])  # [w, h, l] -> [l, w, h]
 
-        #  padding
-        if padding:
-            voxel = F.pad(voxel, (1, 1, 1, 1, 1, 1), "constant", 0.2)
+    #     #  padding
+    #     if padding:
+    #         voxel = F.pad(voxel, (1, 1, 1, 1, 1, 1), "constant", 0.2)
 
-        pts_centroid, _ = self.centroid()  # [N, 3] world coordinate
+    #     pts_centroid, _ = self.centroid()  # [N, 3] world coordinate
 
-        return voxel, pts_centroid, self.bbox[5].item()
+    #     return voxel, pts_centroid, self.bbox[5].item()
 
 
 class point_cloud_scene(object):
@@ -104,13 +104,13 @@ class point_cloud_scene(object):
         self.gt_boxes: torch.Tensor = gt_boxes.detach().clone()
         self.vehicles: list[vehicle_object] = None
         self.vehi_reconstructor: vehicle_reconstructor = vehi_reconstructor
-        self.estimate_loss_fun: pose_estimate_loss = pose_estimate_loss(
-            vehi_reconstructor.sampling_space[2],
-            vehi_reconstructor.sampling_space[0],
-            vehi_reconstructor.sampling_space[1],
-            vehi_reconstructor.global_res)
-        self.shape_regular_fun: shape_regular = shape_regular(
-            vehi_reconstructor.S)
+        # self.estimate_loss_fun: pose_estimate_loss = pose_estimate_loss(
+        #     vehi_reconstructor.sampling_space[2],
+        #     vehi_reconstructor.sampling_space[0],
+        #     vehi_reconstructor.sampling_space[1],
+        #     vehi_reconstructor.global_res)
+        # self.shape_regular_fun: shape_regular = shape_regular(
+        #     vehi_reconstructor.S)
 
     def vehicle_seg(self):
         self.vehicles = []

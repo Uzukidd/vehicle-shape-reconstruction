@@ -12,7 +12,6 @@ from tqdm import tqdm
 
 from typing import Union
 from collections import OrderedDict
-from .utils import get_model_bbox
 
 
 class vehicle(object):
@@ -174,31 +173,39 @@ class vehicle_reconstructor(object):
         # self.vehicles: Meshes = vehicles
         self.TSDF: TSDF = TSDF(resolution=resolution, sampling_count=sampling_count, downsampling_count=downsampling_count, bbox=bbox)
 
-        self.U = None
-        self.S = None
-        self.V = None
+        self._U = None
+        self._S = None
+        self._V = None
         
     def save_parameters(self, path:str):
-        assert (self.U is not None) and (self.S is not None) and (self.V is not None) and (self.average_voxels is not None)
-        torch.save((self.U, self.S, self.V, self.average_voxels), path)
+        assert (self._U is not None) and (self._S is not None) and (self._V is not None) and (self.batch_tsdf_mean is not None)
+        torch.save((self._U, self._S, self._V, self.batch_tsdf_mean), path)
     
     def load_parameters(self, path:str):
-        self.U, self.S, self.V, self.average_voxels = torch.load(path, map_location=torch.device('cuda'))
-
-    def save_voxel(self, path: str):
-        assert self.vehicle_voxels is not None
-        self.vehicle_voxels.astype(np.float32).tofile(path)
-
-    def load_voxel(self, path: str):
-        self.vehicle_voxels = np.fromfile(
-            path, np.float32).reshape([-1] + self.grid_res)
+        self._U, self._S, self._V, self.batch_tsdf_mean = torch.load(path, map_location=torch.device('cuda'))
 
     def prepare_tsdf(self, vehicles: Meshes):
+        """
+            Computing tsdf grid of the Meshes
+            Args:
+                vehicles: Meshes
+            
+            Returns:
+                tsdf_grid: [B, l, w, h]
+
+        """
         batch_tsdf_grid:torch.Tensor = self.TSDF.tsdf(vehicles)
 
         return batch_tsdf_grid
 
-    def fit_meshes(self, vehicles: Meshes, k=4):
+    def fit_meshes(self, vehicles: Meshes, k=5):
+        """
+            Fitting the Meshes with PCA
+            Args:
+                vehicles: Meshes
+                k: latent dimension
+            
+        """
         self.batch_tsdf_grid = self.prepare_tsdf(vehicles)
 
         batch_tsdf_flatten = self.batch_tsdf_grid.view(self.batch_tsdf_grid.size(0), -1)
