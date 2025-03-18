@@ -17,6 +17,8 @@ data_tools.py
 cfgs
 /temp.html
 temp
+*.pt
+*.pth
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

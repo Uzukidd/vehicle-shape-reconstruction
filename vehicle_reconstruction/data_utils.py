@@ -38,8 +38,9 @@ class apolloscape_dataset():
         
         return apolloscape_meshes
     
-    def get_batch_centered_meshes(self):
-        bbox = self.get_bbox()
+    def get_batch_centered_meshes(self, bbox:torch.Tensor = None):
+        if bbox is None: 
+            bbox = self.get_bbox()
         apolloscape_meshes = self.get_batch_meshes()
         # Move all the vehicle to the center
         apolloscape_meshes.offset_verts_(torch.Tensor([0.0, -bbox[1].item()/2, 0.0]).to(apolloscape_meshes.device))

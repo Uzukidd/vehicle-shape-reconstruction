@@ -51,77 +51,66 @@ class pose_estimate_loss_batch(nn.Module):
         loss from https://www.vision.rwth-aachen.de/media/papers/EngelmannGCPR16_SZa4QgP.pdf
     """
 
-    def __init__(self, length: float,
-                 width: float,
-                 height: float,
-                 grid_res: float = 0.1) -> None:
-
+    def __init__(self) -> None:
         super().__init__()
-        self.length:float = length
-        self.width:float = width
-        self.height:float = height
-        self.grid_res:float = grid_res
-        
         self.trilinear_interpolate:Trilinear_interpolation_cuda = Trilinear_interpolation_cuda()
 
-    def forward(self, voxels: torch.Tensor, pts_centroid: torch.Tensor, height_gt: torch.Tensor):
+    def forward(self, tsdf_grid: torch.Tensor, pts_centroid: torch.Tensor, grid_unit: torch.Tensor):
         """
-            voxels: [B, L, W, H]
-            pts_centroid: [B, N, 3]
+            tsdf_grid: [B, L, W, H]
+            pooled pts_centroid: [B, N, 3] -> (0, L * UNIT) x (0, W * UNIT) x (0, H * UNIT)
             height: [B, N]
         """
-        batch_size, grid_l, grid_w, grid_h = voxels.size(0), voxels.size(1), voxels.size(2), voxels.size(3)
-
-        # center position
-        pts_centroid[:, :, 0] += (self.length/2.0)  # [B, N]
-        pts_centroid[:, :, 1] += (self.width/2.0)   # [B, N]
-        pts_centroid[:, :, 2] += (height_gt/2.0)    # [B, N]
+        batch_size, grid_l, grid_w, grid_h = tsdf_grid.size()
 
         # compute grid position
-        pts_centroid_squeezed = pts_centroid.view(-1, 3) # [B, N]
+        pts_centroid_flatten = pts_centroid.view(-1, 3) # [B * N, 3]
         with torch.no_grad():
             x_min = torch.floor(
-                pts_centroid_squeezed[:, 0] / self.grid_res)
+                pts_centroid_flatten[:, 0] / grid_unit[0])
             x_max = x_min + 1
 
             y_min = torch.floor(
-                pts_centroid_squeezed[:, 1] / self.grid_res)
+                pts_centroid_flatten[:, 1] / grid_unit[1])
             y_max = y_min + 1
 
             z_min = torch.floor(
-                pts_centroid_squeezed[:, 2] / self.grid_res)
+                pts_centroid_flatten[:, 2] / grid_unit[2])
             z_max = z_min + 1
 
-        pts_centroid[:, :, 0] -= (x_min * self.grid_res) # [B, N]
-        pts_centroid[:, :, 1] -= (y_min * self.grid_res)
-        pts_centroid[:, :, 2] -= (z_min * self.grid_res)
+        # truncated to [0.0, grid_unit]
+        pts_centroid_flatten[:, 0] -= (x_min * grid_unit[0]) # [B * N]
+        pts_centroid_flatten[:, 1] -= (y_min * grid_unit[1])
+        pts_centroid_flatten[:, 2] -= (z_min * grid_unit[2])
 
         # project to [-1.0, 1.0]
-        pts_centroid[:, :, :] *= (2 / self.grid_res) # [B, N, 3]
-        pts_centroid[:, :, :] -= 1.0
+        pts_centroid_flatten[:, :] *= (2 / grid_unit) # [B * N, 3]
+        pts_centroid_flatten[:, :] -= 1.0
 
         # limit x, y, z into grid boundary
-        x_min = x_min.clamp_(0, grid_l-1).long() # [B, N]
-        y_min = y_min.clamp_(0, grid_w-1).long()
-        z_min = z_min.clamp_(0, grid_h-1).long()
-        x_max = x_max.clamp_(0, grid_l-1).long()
-        y_max = y_max.clamp_(0, grid_w-1).long()
-        z_max = z_max.clamp_(0, grid_h-1).long()
+        x_min = x_min.clamp(0, grid_l-1).long() # [B * N]
+        y_min = y_min.clamp(0, grid_w-1).long()
+        z_min = z_min.clamp(0, grid_h-1).long()
+        x_max = x_max.clamp(0, grid_l-1).long()
+        y_max = y_max.clamp(0, grid_w-1).long()
+        z_max = z_max.clamp(0, grid_h-1).long()
         
-        batch_mask = torch.arange(batch_size).unsqueeze(1).expand_as(x_min)
+        # batch_mask = torch.arange(batch_size).unsqueeze(1).expand_as(x_min)
+        batch_mask = torch.arange(batch_size).unsqueeze(1).expand(-1, pts_centroid.size(1)).flatten() # [B * N]
 
         feature_stack = torch.stack([
-            voxels[batch_mask, x_max, y_max, z_max],  # [B, N]
-            voxels[batch_mask, x_max, y_max, z_min],
-            voxels[batch_mask, x_max, y_min, z_max],
-            voxels[batch_mask, x_max, y_min, z_min],
+            tsdf_grid[batch_mask, x_max, y_max, z_max],  # [B * N]
+            tsdf_grid[batch_mask, x_max, y_max, z_min],
+            tsdf_grid[batch_mask, x_max, y_min, z_max],
+            tsdf_grid[batch_mask, x_max, y_min, z_min],
 
-            voxels[batch_mask, x_min, y_max, z_max],
-            voxels[batch_mask, x_min, y_max, z_min],
-            voxels[batch_mask, x_min, y_min, z_max],
-            voxels[batch_mask, x_min, y_min, z_min],
-        ], dim=2).contiguous() # [B, N, 8]
-        sdf_val = self.trilinear_interpolate.apply(feature_stack, pts_centroid)
+            tsdf_grid[batch_mask, x_min, y_max, z_max],
+            tsdf_grid[batch_mask, x_min, y_max, z_min],
+            tsdf_grid[batch_mask, x_min, y_min, z_max],
+            tsdf_grid[batch_mask, x_min, y_min, z_min],
+        ], dim=1).unsqueeze(2).contiguous() # [B * N, 8]
+
+        sdf_val = self.trilinear_interpolate.apply(feature_stack, pts_centroid_flatten)
         # sdf_val = trilinear_interpolation_cpu(feature_stack, pts_centroid)
         loss = F.huber_loss(sdf_val, torch.zeros_like(sdf_val))
 

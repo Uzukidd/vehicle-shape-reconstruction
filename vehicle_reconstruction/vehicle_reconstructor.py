@@ -162,6 +162,9 @@ class vehicle(object):
 
         return voxels
 
+def quantify_bbox(bbox:torch.Tensor, unit:Union[int, torch.Tensor]):
+    quantified_bbox = unit * (bbox / unit).ceil().int()
+    return quantified_bbox
 
 class vehicle_reconstructor(object):
     """
@@ -169,10 +172,11 @@ class vehicle_reconstructor(object):
     """
 
     def __init__(self, resolution: Union[int, torch.Tensor], bbox: torch.Tensor, sampling_count=4096,
-            downsampling_count=2048, isotropic=True):
+            downsampling_count=2048, unit:Union[torch.Tensor,float]=None):
         # self.vehicles: Meshes = vehicles
         self.TSDF: TSDF = TSDF(resolution=resolution, sampling_count=sampling_count, downsampling_count=downsampling_count, bbox=bbox)
-
+        self.unit = unit
+        
         self._U = None
         self._S = None
         self._V = None
@@ -182,7 +186,7 @@ class vehicle_reconstructor(object):
         torch.save((self._U, self._S, self._V, self.batch_tsdf_mean), path)
     
     def load_parameters(self, path:str):
-        self._U, self._S, self._V, self.batch_tsdf_mean = torch.load(path, map_location=torch.device('cuda'))
+        self._U, self._S, self._V, self.batch_tsdf_mean = torch.load(path)
 
     def prepare_tsdf(self, vehicles: Meshes):
         """
