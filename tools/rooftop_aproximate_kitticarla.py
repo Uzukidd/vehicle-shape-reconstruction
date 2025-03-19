@@ -39,8 +39,8 @@ from pcdet.models import build_network, load_data_to_gpu
 from pcdet.utils import common_utils
 
 CFG_PATH = "cfgs/dataset_configs/kitti_carla_dataset.yaml"
-GTBOXES_PATH = "/home/ksas/uzuki_space/adv-carla/data/gtound truth/gtboxes_voxel_rcnn.pt"
-VISUALIZE = False
+GTBOXES_PATH = "/home/ksas/uzuki_space/adv-carla/output/train/inference_models/voxel_rcnn_car/gtboxes.pt"
+VISUALIZE = True 
 cfg_from_yaml_file(CFG_PATH, cfg)
 
 # BATCH_SIZE = cfg.OPTIMIZATION.BATCH_SIZE_PER_GPU

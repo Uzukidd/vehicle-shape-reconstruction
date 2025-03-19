@@ -4,14 +4,21 @@ data/preprocessed_voxel.bin
 data/vehicle_dataset
 data/apollo_scape
 data/preprocessed_voxel.bin.backup
+data/vehi_reconstructor_baidu_apollo.pt
+
+vehicle_reconstruction/version.py
+
 rooftop_appro_kitti.pkl
 rooftop_appro.bin
 rooftop_appro.pkl
 rooftop_appro.pkl.backup
+rooftop_appro_outdoor.pkl
 data_tools.py
 cfgs
 /temp.html
 temp
+*.pt
+*.pth
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
